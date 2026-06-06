@@ -1,0 +1,10 @@
+credentials:
+  usernames:
+    admin:
+      email: admin@portfolio.local
+      name: Admin
+      password: "$2b$12$8JMFG9yC3duzENg6o2CopOhjjmfk37pxmBlNENSl69D/MAGCd0kVW"
+cookie:
+  expiry_days: 1
+  key: portfolio_risk_dash_secret_key_2026
+  name: portfolio_risk_cookie

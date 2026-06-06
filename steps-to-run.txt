@@ -1,0 +1,34 @@
+# 1. Create and enter project
+mkdir portfolio-risk-dashboard && cd portfolio-risk-dashboard
+
+# 2. Virtual environment
+python -m venv venv && source venv/bin/activate
+
+# 3. Install dependencies
+pip install -r requirements.txt
+
+# 4. Setup env file
+cp .env.example .env
+
+# 5. Start Kafka
+docker compose up -d
+
+# 6. Validate tickers
+python -c "from trading.assets import validate_portfolio_assets; validate_portfolio_assets()"
+
+# 7. Test account connection
+python -c "from portfolio.portfolio import get_account_info; get_account_info()"
+
+# 8. Terminal 1 — Price feed
+python feeds/price_producer.py
+
+# 9. Terminal 2 — Spark stream (optional)
+python streaming/stream_consumer.py
+
+# 10. Terminal 3 — Dashboard
+streamlit run dashboard/app.py
+
+# Shutdown
+docker compose down
+
+Note: Steps 8, 9, 10 each need their own terminal. Run source venv/bin/activate in each new terminal before running the command.

@@ -1,0 +1,10 @@
+confluent-kafka
+alpaca-py
+yfinance
+pandas
+numpy
+streamlit
+plotly
+pyspark
+scipy
+python-dotenv
