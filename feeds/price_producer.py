@@ -30,8 +30,8 @@ def simulate_prices():
     import yfinance as yf
     tickers = list(PORTFOLIO.keys())
     print(f"Market closed — fetching last close prices for {len(tickers)} tickers via yfinance...")
-    data = yf.download(tickers, period="2d", auto_adjust=True, progress=False)["Close"]
-    base = data.iloc[-1].to_dict()
+    data = yf.download(tickers, period="5d", auto_adjust=True, progress=False)["Close"]
+    base = data.dropna().iloc[-1].to_dict()
     print(f"[SIM BASE] { {k: round(v,2) for k,v in base.items()} }")
     prices = dict(base)
     while True:

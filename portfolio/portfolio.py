@@ -15,13 +15,15 @@ def get_account_info() -> dict:
     balance_change = float(account.equity) - float(account.last_equity)
     if account.trading_blocked:
         print("WARNING: Account is currently restricted from trading.")
+    # unrealized_pl removed in newer alpaca-py; approximate from equity - cash - accrued_fees
+    unrealized_pnl = float(account.equity) - float(account.cash) - float(account.accrued_fees)
     return {
         "equity":             float(account.equity),
         "cash":               float(account.cash),
         "buying_power":       float(account.buying_power),
         "last_equity":        float(account.last_equity),
         "daily_pnl":          round(balance_change, 2),
-        "unrealized_pnl":     float(account.unrealized_pl),
+        "unrealized_pnl":     round(unrealized_pnl, 2),
         "trading_blocked":    account.trading_blocked,
         "account_blocked":    account.account_blocked,
         "pattern_day_trader": account.pattern_day_trader,
