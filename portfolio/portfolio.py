@@ -1,8 +1,13 @@
 import yfinance as yf
+import datetime
 from config.settings import (
     PORTFOLIO, LOOKBACK_DAYS, USE_LIVE_PORTFOLIO,
     ALPACA_API_KEY, ALPACA_SECRET_KEY
 )
+
+# ── In-process cache: key = (frozenset of portfolio items, date string) ───────
+_returns_cache: dict = {}
+
 
 def _get_trading_client():
     from alpaca.trading.client import TradingClient
@@ -10,12 +15,12 @@ def _get_trading_client():
         raise EnvironmentError("ALPACA_API_KEY and ALPACA_SECRET_KEY must be set in .env")
     return TradingClient(ALPACA_API_KEY, ALPACA_SECRET_KEY, paper=True)
 
+
 def get_account_info() -> dict:
-    account = _get_trading_client().get_account()
+    account        = _get_trading_client().get_account()
     balance_change = float(account.equity) - float(account.last_equity)
     if account.trading_blocked:
         print("WARNING: Account is currently restricted from trading.")
-    # unrealized_pl removed in newer alpaca-py; approximate from equity - cash - accrued_fees
     unrealized_pnl = float(account.equity) - float(account.cash) - float(account.accrued_fees)
     return {
         "equity":             float(account.equity),
@@ -29,10 +34,12 @@ def get_account_info() -> dict:
         "pattern_day_trader": account.pattern_day_trader,
     }
 
+
 def get_live_portfolio() -> dict:
     """Pull open positions from Alpaca — returns {symbol: qty}."""
     positions = _get_trading_client().get_all_positions()
     return {p.symbol: int(float(p.qty)) for p in positions}
+
 
 def get_live_positions_detail() -> list:
     """Full position details: entry price, unrealized P&L, market value, cost basis."""
@@ -48,11 +55,12 @@ def get_live_positions_detail() -> list:
             "market_value":    float(p.market_value),
             "cost_basis":      float(p.cost_basis),
             "unrealized_pl":   float(p.unrealized_pl),
-            "unrealized_plpc": float(p.unrealized_plpc) * 100,  # as %
+            "unrealized_plpc": float(p.unrealized_plpc) * 100,
             "intraday_pl":     float(p.unrealized_intraday_pl),
             "intraday_plpc":   float(p.unrealized_intraday_plpc) * 100,
         })
     return result
+
 
 def get_single_position(symbol: str) -> dict:
     p = _get_trading_client().get_open_position(symbol)
@@ -65,12 +73,37 @@ def get_single_position(symbol: str) -> dict:
         "unrealized_pl": float(p.unrealized_pl),
     }
 
-def get_historical_returns(portfolio: dict = None):
+
+def get_historical_returns(portfolio: dict = None) -> "pd.DataFrame":
+    """
+    Download historical daily returns for the portfolio tickers.
+    Results are cached by portfolio composition and date to avoid
+    re-downloading 252 days of data on every VaR recompute.
+    """
+    import pandas as pd
     if portfolio is None:
         portfolio = get_live_portfolio() if USE_LIVE_PORTFOLIO else PORTFOLIO
+
+    # Cache key: sorted portfolio items + today's date (refresh daily)
+    cache_key = (
+        tuple(sorted(portfolio.items())),
+        datetime.date.today().isoformat(),
+    )
+    if cache_key in _returns_cache:
+        return _returns_cache[cache_key]
+
     tickers = list(portfolio.keys())
-    data = yf.download(tickers, period=f"{LOOKBACK_DAYS}d", progress=False)["Close"]
-    return data.pct_change().dropna()
+    data    = yf.download(tickers, period=f"{LOOKBACK_DAYS}d", progress=False)["Close"]
+    result  = data.pct_change().dropna()
+
+    _returns_cache[cache_key] = result
+    # Keep cache size bounded — only keep last 10 entries
+    if len(_returns_cache) > 10:
+        oldest_key = next(iter(_returns_cache))
+        del _returns_cache[oldest_key]
+
+    return result
+
 
 def mark_to_market(prices: dict, portfolio: dict = None) -> dict:
     if portfolio is None:
